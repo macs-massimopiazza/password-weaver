@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
-import { motion, AnimatePresence, Reorder } from "framer-motion";
-import { Shield, ShieldAlert, ShieldCheck, RotateCcw, CheckCircle2 } from "lucide-react";
+import { motion, Reorder } from "framer-motion";
+import { Shield, ShieldAlert, ShieldCheck, RotateCcw, CheckCircle2, GripVertical } from "lucide-react";
 import RoomSelector from "./RoomSelector";
 import PasswordCard from "./PasswordCard";
-import { passwordRooms, getShuffledPasswords, type PasswordEntry, type Room } from "@/data/passwordRooms";
+import { passwordRooms, getShuffledPasswords, type PasswordEntry } from "@/data/passwordRooms";
 
 const STORAGE_KEY = "password-ranker-state";
 
@@ -17,7 +17,6 @@ type StoredState = Record<string, RoomState>;
 const PasswordRanker = () => {
   const [activeRoomId, setActiveRoomId] = useState(passwordRooms[0].id);
   const [roomStates, setRoomStates] = useState<StoredState>({});
-  const [draggingId, setDraggingId] = useState<string | null>(null);
   const [showResults, setShowResults] = useState(false);
 
   // Load state from localStorage on mount
@@ -199,43 +198,31 @@ const PasswordRanker = () => {
           onReorder={handleReorder}
           className="space-y-3"
         >
-          <AnimatePresence mode="popLayout">
-            {currentState.passwords.map((entry, index) => (
-              <Reorder.Item
-                key={entry.id}
-                value={entry}
-                className="list-none"
-              >
-                <div className="relative">
-                  <PasswordCard
-                    entry={entry}
-                    index={index}
-                    totalCards={currentState.passwords.length}
-                    isDragging={draggingId === entry.id}
-                    onDragStart={() => setDraggingId(entry.id)}
-                    onDragEnd={() => setDraggingId(null)}
-                  />
-                  
-                  {/* Result indicator */}
-                  {showResults && (
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.8 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      className={`
-                        absolute -right-2 -top-2 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold
-                        ${entry.strengthLevel === index + 1 
-                          ? 'bg-accent text-accent-foreground accent-glow' 
-                          : 'bg-destructive text-destructive-foreground danger-glow'
-                        }
-                      `}
-                    >
-                      {entry.strengthLevel === index + 1 ? '✓' : entry.strengthLevel}
-                    </motion.div>
-                  )}
+          {currentState.passwords.map((entry, index) => (
+            <Reorder.Item
+              key={entry.id}
+              value={entry}
+              className="list-none cursor-grab active:cursor-grabbing"
+              whileDrag={{ 
+                scale: 1.02, 
+                boxShadow: "0 0 30px hsl(180 100% 50% / 0.5)",
+                zIndex: 50 
+              }}
+              whileHover={{ scale: 1.01 }}
+            >
+              <div className="flex items-center gap-2">
+                <div className="text-muted-foreground hover:text-primary transition-colors cursor-grab active:cursor-grabbing">
+                  <GripVertical className="w-5 h-5" />
                 </div>
-              </Reorder.Item>
-            ))}
-          </AnimatePresence>
+                <PasswordCard
+                  entry={entry}
+                  index={index}
+                  totalCards={currentState.passwords.length}
+                  showResult={showResults}
+                />
+              </div>
+            </Reorder.Item>
+          ))}
         </Reorder.Group>
       </motion.div>
 
