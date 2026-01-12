@@ -1,19 +1,21 @@
 import { motion } from "framer-motion";
-import { Folder, FolderOpen } from "lucide-react";
+import { Folder, FolderOpen, CheckCircle2 } from "lucide-react";
 import type { Room } from "@/data/passwordRooms";
 
 interface RoomSelectorProps {
   rooms: Room[];
   activeRoomId: string;
   onRoomChange: (roomId: string) => void;
+  completedRooms: string[];
 }
 
-const RoomSelector = ({ rooms, activeRoomId, onRoomChange }: RoomSelectorProps) => {
+const RoomSelector = ({ rooms, activeRoomId, onRoomChange, completedRooms }: RoomSelectorProps) => {
   return (
     <div className="w-full overflow-x-auto pb-2">
       <div className="flex gap-2 min-w-max px-1">
         {rooms.map((room, index) => {
           const isActive = room.id === activeRoomId;
+          const isCompleted = completedRooms.includes(room.id);
           
           return (
             <motion.button
@@ -26,11 +28,15 @@ const RoomSelector = ({ rooms, activeRoomId, onRoomChange }: RoomSelectorProps) 
                 font-mono text-xs md:text-sm transition-all duration-200
                 ${isActive 
                   ? 'bg-primary text-primary-foreground cyber-glow-strong' 
-                  : 'bg-secondary text-secondary-foreground hover:bg-muted cyber-border hover:cyber-glow'
+                  : isCompleted
+                    ? 'bg-accent/20 text-accent border border-accent/50 hover:bg-accent/30'
+                    : 'bg-secondary text-secondary-foreground hover:bg-muted cyber-border hover:cyber-glow'
                 }
               `}
             >
-              {isActive ? (
+              {isCompleted ? (
+                <CheckCircle2 className="w-4 h-4 text-accent" />
+              ) : isActive ? (
                 <FolderOpen className="w-4 h-4" />
               ) : (
                 <Folder className="w-4 h-4" />
