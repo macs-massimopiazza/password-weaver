@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, Reorder } from "framer-motion";
-import { Shield, ShieldAlert, ShieldCheck, RotateCcw, CheckCircle2, GripVertical } from "lucide-react";
+import { Shield, ShieldAlert, ShieldCheck, RotateCcw, CheckCircle2, GripVertical, Trophy } from "lucide-react";
 import RoomSelector from "./RoomSelector";
 import PasswordCard from "./PasswordCard";
 import { passwordRooms, getShuffledPasswords, type PasswordEntry } from "@/data/passwordRooms";
 
 const STORAGE_KEY = "password-ranker-state";
+const COMPLETED_KEY = "password-ranker-completed";
 
 interface RoomState {
   passwords: PasswordEntry[];
@@ -17,17 +18,26 @@ type StoredState = Record<string, RoomState>;
 const PasswordRanker = () => {
   const [activeRoomId, setActiveRoomId] = useState(passwordRooms[0].id);
   const [roomStates, setRoomStates] = useState<StoredState>({});
+  const [completedRooms, setCompletedRooms] = useState<string[]>([]);
   const [showResults, setShowResults] = useState(false);
 
   // Load state from localStorage on mount
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
+    const savedCompleted = localStorage.getItem(COMPLETED_KEY);
     if (saved) {
       try {
         const parsed = JSON.parse(saved) as StoredState;
         setRoomStates(parsed);
       } catch {
         console.error("Failed to parse saved state");
+      }
+    }
+    if (savedCompleted) {
+      try {
+        setCompletedRooms(JSON.parse(savedCompleted));
+      } catch {
+        console.error("Failed to parse completed rooms");
       }
     }
   }, []);
@@ -38,6 +48,11 @@ const PasswordRanker = () => {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(roomStates));
     }
   }, [roomStates]);
+
+  // Save completed rooms to localStorage
+  useEffect(() => {
+    localStorage.setItem(COMPLETED_KEY, JSON.stringify(completedRooms));
+  }, [completedRooms]);
 
   // Get current room data
   const activeRoom = passwordRooms.find(r => r.id === activeRoomId) || passwordRooms[0];
@@ -98,7 +113,32 @@ const PasswordRanker = () => {
         isChecked: true,
       },
     }));
-  }, [activeRoomId]);
+    
+    // Check if perfect and mark as completed
+    const passwords = currentState.passwords;
+    let correct = 0;
+    passwords.forEach((pwd, index) => {
+      if (pwd.strengthLevel === index + 1) correct++;
+    });
+    
+    if (correct === passwords.length && !completedRooms.includes(activeRoomId)) {
+      setCompletedRooms(prev => [...prev, activeRoomId]);
+    }
+  }, [activeRoomId, currentState.passwords, completedRooms]);
+
+  const handleResetCompletion = useCallback(() => {
+    setCompletedRooms(prev => prev.filter(id => id !== activeRoomId));
+    setRoomStates(prev => ({
+      ...prev,
+      [activeRoomId]: {
+        passwords: getShuffledPasswords(activeRoom.passwords),
+        isChecked: false,
+      },
+    }));
+    setShowResults(false);
+  }, [activeRoomId, activeRoom.passwords]);
+
+  const isCurrentRoomCompleted = completedRooms.includes(activeRoomId);
 
   // Calculate score
   const calculateScore = () => {
@@ -155,6 +195,7 @@ const PasswordRanker = () => {
           rooms={passwordRooms}
           activeRoomId={activeRoomId}
           onRoomChange={handleRoomChange}
+          completedRooms={completedRooms}
         />
       </motion.section>
 
@@ -226,55 +267,77 @@ const PasswordRanker = () => {
         </Reorder.Group>
       </motion.div>
 
-      {/* Score Display */}
-      {showResults && score && (
+      {/* Completion Banner */}
+      {isCurrentRoomCompleted && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className={`
-            mb-4 p-4 rounded-lg text-center cyber-border
-            ${isPerfect ? 'bg-accent/20 accent-glow' : 'bg-secondary'}
-          `}
+          className="mb-4 p-4 rounded-lg cyber-border bg-accent/20 accent-glow"
         >
-          {isPerfect ? (
-            <div className="flex items-center justify-center gap-2 text-accent">
-              <CheckCircle2 className="w-6 h-6" />
-              <span className="text-lg font-bold">Perfect! All passwords ranked correctly!</span>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-accent">
+              <Trophy className="w-6 h-6" />
+              <span className="text-lg font-bold">Room Completed!</span>
             </div>
-          ) : (
-            <p className="text-foreground">
-              Score: <span className="font-bold text-primary">{score.correct}</span> / {score.total} correct
-              <span className="block text-sm text-muted-foreground mt-1">
-                Numbers on wrong cards show their correct position
-              </span>
-            </p>
-          )}
+            <button
+              onClick={handleResetCompletion}
+              className="flex items-center gap-2 px-3 py-1.5 bg-secondary hover:bg-muted text-secondary-foreground rounded-lg font-mono text-xs transition-all cyber-border hover:cyber-glow"
+            >
+              <RotateCcw className="w-3 h-3" />
+              Reset
+            </button>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Score Display */}
+      {showResults && score && !isCurrentRoomCompleted && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-4 p-4 rounded-lg text-center cyber-border bg-secondary"
+        >
+          <p className="text-foreground">
+            Score: <span className="font-bold text-primary">{score.correct}</span> / {score.total} correct
+            <span className="block text-sm text-muted-foreground mt-1">
+              Numbers on wrong cards show their correct position
+            </span>
+          </p>
         </motion.div>
       )}
 
       {/* Action Buttons */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.3 }}
-        className="flex gap-3 justify-center"
-      >
-        <button
-          onClick={handleReset}
-          className="flex items-center gap-2 px-4 py-2.5 bg-secondary hover:bg-muted text-secondary-foreground rounded-lg font-mono text-sm transition-all cyber-border hover:cyber-glow"
+      {!isCurrentRoomCompleted && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.3 }}
+          className="flex gap-3 justify-center"
         >
-          <RotateCcw className="w-4 h-4" />
-          Shuffle
-        </button>
-        
-        <button
-          onClick={handleCheck}
-          className="flex items-center gap-2 px-6 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg font-mono text-sm font-bold transition-all cyber-glow-strong hover:scale-105"
-        >
-          <ShieldCheck className="w-4 h-4" />
-          Check Order
-        </button>
-      </motion.div>
+          <button
+            onClick={handleReset}
+            className="flex items-center gap-2 px-4 py-2.5 bg-secondary hover:bg-muted text-secondary-foreground rounded-lg font-mono text-sm transition-all cyber-border hover:cyber-glow"
+          >
+            <RotateCcw className="w-4 h-4" />
+            Shuffle
+          </button>
+          
+          <button
+            onClick={handleCheck}
+            className="flex items-center gap-2 px-6 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg font-mono text-sm font-bold transition-all cyber-glow-strong hover:scale-105"
+          >
+            <ShieldCheck className="w-4 h-4" />
+            Check Order
+          </button>
+        </motion.div>
+      )}
+
+      {/* Progress Display */}
+      <div className="text-center mt-4">
+        <p className="text-sm text-muted-foreground font-mono">
+          Progress: <span className="text-primary font-bold">{completedRooms.length}</span> / {passwordRooms.length} rooms completed
+        </p>
+      </div>
 
       {/* Footer */}
       <motion.footer
